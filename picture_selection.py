@@ -138,9 +138,17 @@ def select_photos(photos_with_info, num_photos_per_date, pct, folder, sub_folder
 ### Parameters ###
 mode = 0o666
 folder = "c:/pics/"
-sub_folder = "selection2"
+sub_folder = "selection"
 num_photos_to_select = 200
 agg_seconds = 30
+
+### User input ### 
+folder = input("Enter folder with pictures to select from:")
+print("Folder is: " + folder)
+num_photos_to_select = input("Enter the number of pictures you would like to select:")
+print("You would like to select: " + num_photos_to_select + " pictures.")
+agg_seconds = input("Enter an interval in seconds you do not want to have more than one picture from:")
+print("You would like to select only one picture every " + agg_seconds + " seconds.")
 
 ### Initialize brisque scoring model ###
 brisq = BRISQUE()
