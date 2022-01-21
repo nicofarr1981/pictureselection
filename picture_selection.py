@@ -116,13 +116,13 @@ def get_num_photos_per_day(file_dict_sorted):
     return photos_per_day
 
 # Select pictures based on desired number of pictures in result set
-def select_photos(photos_with_info, num_photos_per_date, pct, folder, sub_folder):
+def select_photos(photos_with_info, num_photos_per_date, min_no_photos, pct, folder, sub_folder):
     prev = ''
     cnt_logic = 0
     cnt_select = 0
     for p in photos_with_info:
         if (prev == p[1][0:8]):
-            if (cnt_logic < max(round(num_photos_per_date[p[1][0:8]]*pct,0),1)):
+            if (cnt_logic < max(round(num_photos_per_date[p[1][0:8]]*pct,0),min_no_photos)):
                 #print(str(p[1][0:8])+" "+p[0])
                 copy_file(p[0], folder, folder+sub_folder)
                 cnt_select = cnt_select+1
@@ -149,60 +149,50 @@ def user_inp_folder():
             break
     return folder
 
-def user_inp_num_photos():
+def user_input_int(min, max, text):
     while True:
         try:
-            num_photos_to_select = int(input("Enter the number of pictures you would like to select:"))
-            if (num_photos_to_select < 1 or num_photos_to_select > 500):
+            num = int(input(text))
+            if (num < min or num > max):
                 raise ValueError
         except ValueError:
-            print("This is not a valid number (allowed: 1-500). Please try again.")
+            print("This is not a valid number (allowed: "+str(min)+"-"+str(max)+"). Please try again.")
             continue
         else:
             print("Number accepted")
             break
-    return num_photos_to_select
-
-def user_inp_agg_seconds():
-    while True:
-        try:
-            agg_seconds = int(input("Enter an interval in seconds you do not want to have more than one picture from:"))
-            if (agg_seconds < 0 or agg_seconds > 600):
-                raise ValueError
-        except ValueError:
-            print("This is not a valid number (allowed: 0-600). Please try again.")
-            continue
-        else:
-            print("Number accepted")
-            break
-    return agg_seconds
+    return num
 
 ### Parameters ###
 mode = 0o666
-folder = "c:/pics/"
 sub_folder = "selection"
-num_photos_to_select = 200
+
+### Default Parameters ###
+folder = "c:/pics/test/"
+num_photos_to_select = 20
 agg_seconds = 30
+min_no_photos = 1
 
 ### User input ### 
 #folder = user_inp_folder()
-#num_photos_to_select = user_inp_num_photos()
-#agg_seconds = user_inp_agg_seconds()
+#num_photos_to_select = user_input_int(1,500,"Enter the number of pictures you would like to select:")
+#agg_seconds = user_input_int(0,600,"Enter an interval in seconds you do not want to have more than one picture from:")
+#min_no_photos = user_input_int(0,10,"Enter how many pictures you would like to have from each day:")
 
 ### Initialize brisque scoring model ###
 brisq = BRISQUE()
 
 ### Create a new sub directory for pictures selected
-#create_new_subdir(folder, sub_folder, mode)
+create_new_subdir(folder, sub_folder, mode)
 ### Get all pictures with date & datetime
-#photos_with_dt = get_photos_with_dt(folder)
+photos_with_dt = get_photos_with_dt(folder)
 ### Get pictures filtered depending on time proximity
-#photos_filtered = get_photos_time_filtered(photos_with_dt, agg_seconds)
+photos_filtered = get_photos_time_filtered(photos_with_dt, agg_seconds)
 ### Get resolution and scoring and sort pictures accordingly
-# photos_sorted = get_photos_with_score_res(photos_filtered, folder)
+photos_sorted = get_photos_with_score_res(photos_filtered, folder)
 ### Get number pictures taken per day
-#num_photos_per_date = get_num_photos_per_day(photos_sorted)
+num_photos_per_date = get_num_photos_per_day(photos_sorted)
 ### Derive percentage of pictures to be selected
-#pct = round((num_photos_to_select/len(photos_sorted)),2)
+pct = round((num_photos_to_select/len(photos_sorted)),2)
 ### Select pictures depending on quality and the percentage of pictures for selection
-#select_photos(photos_sorted, num_photos_per_date, pct, folder, sub_folder)
+select_photos(photos_sorted, num_photos_per_date, min_no_photos, pct, folder, sub_folder)
