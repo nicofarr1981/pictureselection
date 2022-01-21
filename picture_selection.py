@@ -169,7 +169,7 @@ sub_folder = "selection"
 
 ### Default Parameters ###
 folder = "c:/pics/test/"
-num_photos_to_select = 20
+num_photos_to_select = 200
 agg_seconds = 30
 min_no_photos = 1
 
