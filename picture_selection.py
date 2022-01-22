@@ -1,11 +1,12 @@
 #!/bin/python
-import os, sys, stat, subprocess
+import os, stat
 from pickle import FALSE, TRUE
 import shutil
-import sys
 import numpy as np
 import random
-from datetime import date, datetime
+from datetime import datetime
+from time import strftime
+from time import gmtime
 from os import scandir
 from shutil import copy2
 from PIL import Image
@@ -108,7 +109,10 @@ def get_photos_time_filtered(file_dict, agg_seconds):
 # Get resolution and score for all pictures, sort by date, landscape over portrait, resolution, score and return picture list
 def get_photos_with_score_res(file_dict, folder):
     file_dict_score = {}
-    counter = 0
+    counter = 0 
+    sum_time_per_picture = 0
+    prev = datetime.now()
+    dict_len = len(file_dict)
     for f in file_dict:
         res_info = get_picture_res(folder+f)
         res = 100000000-res_info[0]
@@ -117,7 +121,13 @@ def get_photos_with_score_res(file_dict, folder):
         score_str = '%03d' %score
         file_dict_score[f] = file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str
         counter = counter+1
-        print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(len(file_dict))+" scored ("+str(round((counter/len(file_dict))*100,2))+" %): "+f+" "+file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str)
+        cur_time_per_picture = (datetime.now() - prev).total_seconds()
+        sum_time_per_picture = sum_time_per_picture + cur_time_per_picture
+        avg_time_per_picture = sum_time_per_picture / counter
+        time_remaining = round((dict_len - counter) * avg_time_per_picture,0)
+        time_remaining_str = strftime("%H:%M:%S", gmtime(time_remaining))
+        print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(dict_len)+" scored ("+str(round((counter/len(file_dict))*100,1))+"%, "+time_remaining_str+" remaining) / "+f) #+" "+file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str)
+        prev = datetime.now()
     file_dict_score_sorted = sorted(file_dict_score.items(), key=lambda x: (x[1]))
     #print("\n".join(map(str, file_dict_score_sorted)))
     return file_dict_score_sorted
@@ -187,7 +197,7 @@ def user_input_int(min, max, text):
 
 ### Parameters ###
 mode = 0o666
-sub_folder = "selection"
+sub_folder = "selection_test"
 test_mode = FALSE
 
 ### Default Parameters ###
