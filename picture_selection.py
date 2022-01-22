@@ -1,5 +1,6 @@
 #!/bin/python
-import os
+import os, sys, stat, subprocess
+from pickle import FALSE, TRUE
 import shutil
 import sys
 import numpy as np
@@ -8,17 +9,26 @@ from datetime import date, datetime
 from os import scandir
 from shutil import copy2
 from PIL import Image
+import cv2
 from libsvm import svmutil
 from brisque import BRISQUE
 from numpy.testing._private.utils import print_assert_equal
 
 # Create a new sub directory
 # Remove it already exists
-def create_new_subdir(folder, sub_folder, mode):
+def create_new_subdir(folder, sub_folder):
     path = folder+sub_folder
-    if(os.path.isdir(path)):
-        shutil.rmtree(path, ignore_errors=True)
-    os.mkdir(path, mode)
+    if os.path.exists(path) :
+        shutil.rmtree(folder+sub_folder, onerror=remove_readonly)
+    os.mkdir(path)
+
+# Function to ensure read-only Windows folder can be removed
+def remove_readonly(fn, path, excinfo):
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        fn(path)
+    except Exception as exc:
+        print("Skipped:", path, "because:\n", exc)
 
 # Move files from source to target folder
 def move_file(file, src_folder, tgt_folder):
@@ -38,14 +48,21 @@ def get_picture_dt(path):
 
 # Get picture resolution
 def get_picture_res(path):
-    img = Image.open(path)
-    wid, hgt = img.size
+    image = cv2.imread(path)
+    hgt, wid = image.shape[:2]
+    if (wid > hgt):
+        is_portrait = 0
+    else:
+        is_portrait = 1
     res = (wid*hgt)
-    return res
+    return res, is_portrait
 
 # Get picture score based on brisq scoring model
 def get_picture_score(path):
-    return brisq.get_score(path)
+    if test_mode == TRUE:
+        return random.randint(0, 100) 
+    else:
+        return brisq.get_score(path)
 
 # Get all pictures with date and datetime information sorted
 # Ignore picture without picture taken metatag
@@ -88,16 +105,21 @@ def get_photos_time_filtered(file_dict, agg_seconds):
     print(str(datetime.now())+" Log: Pictures reduced from "+str(len(file_dict))+" to "+str(counter)+" using "+str(agg_seconds)+" seconds aggregation timeframe")
     return file_dict_reduced
 
-# Get resolution and score for all pictures, sort by resolution, score and return picture list
+# Get resolution and score for all pictures, sort by date, landscape over portrait, resolution, score and return picture list
 def get_photos_with_score_res(file_dict, folder):
     file_dict_score = {}
+    counter = 0
     for f in file_dict:
-        res = 100000000-get_picture_res(folder+f)
+        res_info = get_picture_res(folder+f)
+        res = 100000000-res_info[0]
         res_str = '%09d' %res
         score = get_picture_score(folder+f)
         score_str = '%03d' %score
-        file_dict_score[f] = file_dict[f]+"_"+res_str+"_"+score_str
+        file_dict_score[f] = file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str
+        counter = counter+1
+        print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(len(file_dict))+" scored ("+str(round((counter/len(file_dict))*100,2))+" %): "+f+" "+file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str)
     file_dict_score_sorted = sorted(file_dict_score.items(), key=lambda x: (x[1]))
+    #print("\n".join(map(str, file_dict_score_sorted)))
     return file_dict_score_sorted
 
 # Get number of pictures per day
@@ -166,9 +188,10 @@ def user_input_int(min, max, text):
 ### Parameters ###
 mode = 0o666
 sub_folder = "selection"
+test_mode = FALSE
 
 ### Default Parameters ###
-folder = "c:/pics/test/"
+folder = "c:/pics/"
 num_photos_to_select = 200
 agg_seconds = 30
 min_no_photos = 1
@@ -183,7 +206,7 @@ min_no_photos = 1
 brisq = BRISQUE()
 
 ### Create a new sub directory for pictures selected
-create_new_subdir(folder, sub_folder, mode)
+create_new_subdir(folder, sub_folder)
 ### Get all pictures with date & datetime
 photos_with_dt = get_photos_with_dt(folder)
 ### Get pictures filtered depending on time proximity
