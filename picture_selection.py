@@ -7,7 +7,6 @@ import random
 from datetime import datetime
 from time import strftime
 from time import gmtime
-from os import scandir
 from shutil import copy2
 from PIL import Image
 import cv2
@@ -197,7 +196,7 @@ def user_input_int(min, max, text):
 
 ### Parameters ###
 mode = 0o666
-sub_folder = "selection_test"
+sub_folder = "selection"
 test_mode = FALSE
 
 ### Default Parameters ###
