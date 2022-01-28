@@ -36,7 +36,7 @@ def move_file(file, src_folder, tgt_folder):
 
 # Copy files from source to target folder
 def copy_file(file, src_folder, tgt_folder):
-    copy2(src_folder+file, tgt_folder+'/'+file)
+    copy2(src_folder+file, tgt_folder+'/'+file) 
 
 # Get picture taken metatag as date string and datetime
 def get_picture_dt(path):
@@ -45,6 +45,15 @@ def get_picture_dt(path):
     dt_str = str(dt)
     d = dt_str[0:4]+dt_str[5:7]+dt_str[8:10]
     return d, dt
+
+def get_picture_blur(path):
+    image = cv2.imread(path)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    fm = cv2.Laplacian(gray, cv2.CV_64F).var()
+    if fm < blur_threshold:
+        return 1
+    else:
+        return 0
 
 # Get picture resolution
 def get_picture_res(path):
@@ -66,6 +75,7 @@ def get_picture_score(path):
 
 # Get all pictures with date and datetime information sorted
 # Ignore picture without picture taken metatag
+# Ignore blurry pictures
 def get_photos_with_dt(path):
     dir_entries = os.scandir(path)
     cnt_suc = 0
@@ -104,6 +114,33 @@ def get_photos_time_filtered(file_dict, agg_seconds):
             counter = counter+1
     print(str(datetime.now())+" Log: Pictures reduced from "+str(len(file_dict))+" to "+str(counter)+" using "+str(agg_seconds)+" seconds aggregation timeframe")
     return file_dict_reduced
+
+# Filter out blurry pictures
+def get_photos_blur_filtered(file_dict):
+    counter = 0 
+    sum_time_per_picture = 0
+    dict_len = len(file_dict)
+    file_dict_reduced = {}
+    prev = datetime.now()
+    if (test_mode == FALSE):
+        for f in file_dict:
+            blurry = get_picture_blur(folder+f)
+            if (blurry == 0):
+                file_dict_reduced[f] = file_dict[f]
+            else:
+                pass
+            counter = counter+1
+            cur_time_per_picture = (datetime.now() - prev).total_seconds()
+            sum_time_per_picture = sum_time_per_picture + cur_time_per_picture
+            avg_time_per_picture = sum_time_per_picture / counter
+            time_remaining = round((dict_len - counter) * avg_time_per_picture,0)
+            time_remaining_str = strftime("%H:%M:%S", gmtime(time_remaining))
+            print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(dict_len)+" checked for blur ("+str(round((counter/dict_len)*100,1))+"%, "+time_remaining_str+" remaining) / "+f)
+            prev = datetime.now()
+        print(str(datetime.now())+" Log: Pictures reduced from "+str(dict_len)+" to "+str(len(file_dict_reduced))+" filtering out blurred ones")
+        return file_dict_reduced   
+    else: 
+        return file_dict
 
 # Get resolution and score for all pictures, sort by date, landscape over portrait, resolution, score and return picture list
 def get_photos_with_score_res(file_dict, folder):
@@ -195,14 +232,14 @@ def user_input_int(min, max, text):
     return num
 
 ### Parameters ###
-mode = 0o666
 sub_folder = "selection"
 test_mode = FALSE
 
 ### Default Parameters ###
+blur_threshold = 100
 folder = "c:/pics/"
 num_photos_to_select = 200
-agg_seconds = 30
+agg_seconds = 60
 min_no_photos = 1
 
 ### User input ### 
@@ -216,12 +253,14 @@ brisq = BRISQUE()
 
 ### Create a new sub directory for pictures selected
 create_new_subdir(folder, sub_folder)
-### Get all pictures with date & datetime
+### Get all pictures with date & datetime that are not blurry
 photos_with_dt = get_photos_with_dt(folder)
 ### Get pictures filtered depending on time proximity
-photos_filtered = get_photos_time_filtered(photos_with_dt, agg_seconds)
+photos_filtered_time = get_photos_time_filtered(photos_with_dt, agg_seconds)
+### Get picutres filtered on degree of blur
+photos_filtered_blur = get_photos_blur_filtered(photos_filtered_time)
 ### Get resolution and scoring and sort pictures accordingly
-photos_sorted = get_photos_with_score_res(photos_filtered, folder)
+photos_sorted = get_photos_with_score_res(photos_filtered_blur, folder)
 ### Get number pictures taken per day
 num_photos_per_date = get_num_photos_per_day(photos_sorted)
 ### Derive percentage of pictures to be selected
