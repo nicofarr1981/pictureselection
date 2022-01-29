@@ -1,5 +1,6 @@
 #!/bin/python
 import os, stat
+import subprocess
 from pickle import FALSE, TRUE
 import shutil
 import numpy as np
@@ -66,6 +67,17 @@ def get_picture_res(path):
     res = (wid*hgt)
     return res, is_portrait
 
+def get_brightness_score(path):
+    infoDict = {}
+    process = subprocess.Popen([exifToolPath,path],stdout=subprocess.PIPE, stderr=subprocess.STDOUT,universal_newlines=True) 
+    for tag in process.stdout:
+        line = tag.strip().split(':')
+        infoDict[line[0].strip()] = line[-1].strip()
+    if len(infoDict)>100:
+        return round(float(infoDict['Brightness Value'])*float(infoDict['Light Value']),2)
+    else:
+        return 0
+
 # Get picture score based on brisq scoring model
 def get_picture_score(path):
     if test_mode == TRUE:
@@ -75,7 +87,6 @@ def get_picture_score(path):
 
 # Get all pictures with date and datetime information sorted
 # Ignore picture without picture taken metatag
-# Ignore blurry pictures
 def get_photos_with_dt(path):
     dir_entries = os.scandir(path)
     cnt_suc = 0
@@ -88,8 +99,7 @@ def get_photos_with_dt(path):
                 cnt_suc = cnt_suc+1
             except:
                 cnt_err = cnt_err+1
-    print(str(datetime.now())+" Log: "+str(cnt_suc)+" photos have been successfully added with metadata")
-    print(str(datetime.now())+" Log: "+str(cnt_err)+" photos have been ignored since they are missing date taken information")
+    print(str(datetime.now())+" Log: "+str(cnt_err)+" photos have been eliminated due to missing metadata ("+str(str(cnt_suc))+" remaining)")
     file_dict_sorted = sorted(file_dict.items(), key=lambda x: (x[1][0],x[1][1]))
     return file_dict_sorted
 
@@ -112,13 +122,13 @@ def get_photos_time_filtered(file_dict, agg_seconds):
             file_dict_reduced[f[0]] = f[1][0]
             prev = f
             counter = counter+1
-    print(str(datetime.now())+" Log: Pictures reduced from "+str(len(file_dict))+" to "+str(counter)+" using "+str(agg_seconds)+" seconds aggregation timeframe")
+    print(str(datetime.now())+" Log: "+str(len(file_dict)-len(file_dict_reduced))+" photos have been eliminated using "+str(agg_seconds)+" seconds aggregation timeframe ("+str(len(file_dict_reduced))+" remaining)")
     return file_dict_reduced
 
 # Filter out blurry pictures
 def get_photos_blur_filtered(file_dict):
-    counter = 0 
-    sum_time_per_picture = 0
+    counter = 0
+    sum_time_per_picture = 0 
     dict_len = len(file_dict)
     file_dict_reduced = {}
     prev = datetime.now()
@@ -137,16 +147,16 @@ def get_photos_blur_filtered(file_dict):
             time_remaining_str = strftime("%H:%M:%S", gmtime(time_remaining))
             print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(dict_len)+" checked for blur ("+str(round((counter/dict_len)*100,1))+"%, "+time_remaining_str+" remaining) / "+f)
             prev = datetime.now()
-        print(str(datetime.now())+" Log: Pictures reduced from "+str(dict_len)+" to "+str(len(file_dict_reduced))+" filtering out blurred ones")
+        print(str(datetime.now())+" Log: "+str(dict_len-len(file_dict_reduced))+" photos have been eliminated due to blur"+" ("+str(len(file_dict_reduced))+" remaining)")
         return file_dict_reduced   
     else: 
         return file_dict
 
-# Get resolution and score for all pictures, sort by date, landscape over portrait, resolution, score and return picture list
+# Get resolution and score for all pictures, sort by date, landscape over portrait, resolution, brightness/light, score and return picture list
 def get_photos_with_score_res(file_dict, folder):
     file_dict_score = {}
-    counter = 0 
-    sum_time_per_picture = 0
+    counter = 0
+    sum_time_per_picture = 0 
     prev = datetime.now()
     dict_len = len(file_dict)
     for f in file_dict:
@@ -155,14 +165,16 @@ def get_photos_with_score_res(file_dict, folder):
         res_str = '%09d' %res
         score = get_picture_score(folder+f)
         score_str = '%03d' %score
-        file_dict_score[f] = file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str
+        brightness = 1000-get_brightness_score(folder+f)
+        brightness_str = '%03d' %round(brightness,0)
+        file_dict_score[f] = file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+brightness_str+"_"+score_str
         counter = counter+1
         cur_time_per_picture = (datetime.now() - prev).total_seconds()
         sum_time_per_picture = sum_time_per_picture + cur_time_per_picture
         avg_time_per_picture = sum_time_per_picture / counter
         time_remaining = round((dict_len - counter) * avg_time_per_picture,0)
         time_remaining_str = strftime("%H:%M:%S", gmtime(time_remaining))
-        print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(dict_len)+" scored ("+str(round((counter/len(file_dict))*100,1))+"%, "+time_remaining_str+" remaining) / "+f) #+" "+file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+score_str)
+        print(str(datetime.now())+" Log: Photo "+str(counter)+" of "+str(dict_len)+" scored ("+str(round((counter/len(file_dict))*100,1))+"%, "+time_remaining_str+" remaining) / "+f+" "+file_dict[f]+"_"+str(res_info[1])+"_"+res_str+"_"+brightness_str+"_"+score_str)
         prev = datetime.now()
     file_dict_score_sorted = sorted(file_dict_score.items(), key=lambda x: (x[1]))
     #print("\n".join(map(str, file_dict_score_sorted)))
@@ -232,6 +244,7 @@ def user_input_int(min, max, text):
     return num
 
 ### Parameters ###
+exifToolPath = 'C:/Program Files/exiftool/exifTool.exe'
 sub_folder = "selection"
 test_mode = FALSE
 
@@ -253,13 +266,13 @@ brisq = BRISQUE()
 
 ### Create a new sub directory for pictures selected
 create_new_subdir(folder, sub_folder)
-### Get all pictures with date & datetime that are not blurry
+### Get all pictures with date & datetime tag
 photos_with_dt = get_photos_with_dt(folder)
 ### Get pictures filtered depending on time proximity
 photos_filtered_time = get_photos_time_filtered(photos_with_dt, agg_seconds)
 ### Get picutres filtered on degree of blur
 photos_filtered_blur = get_photos_blur_filtered(photos_filtered_time)
-### Get resolution and scoring and sort pictures accordingly
+### Get resolution, brightness/light and scoring and sort pictures accordingly
 photos_sorted = get_photos_with_score_res(photos_filtered_blur, folder)
 ### Get number pictures taken per day
 num_photos_per_date = get_num_photos_per_day(photos_sorted)
